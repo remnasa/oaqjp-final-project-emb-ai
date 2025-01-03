@@ -13,7 +13,7 @@ def emot_detector():
     response = emotion_detector(text_to_analyze)
 
     # Extract the label and score from the response
-    all_emotions = response[emotion_scores]
+    all_emotions = response['emotion_scores']
     dom_emotion = response['dominant_emotion']
 
     # Return the detected emotions along with the dominant one
