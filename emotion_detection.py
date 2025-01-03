@@ -5,44 +5,64 @@
 import requests
 import json
 
-def emotion_detector(text_to_analyse):
-    """ This fucntion defines the URL for emotion analysis API,
-    Creates the payload with the text to be analyzed, sets the headers, 
-    makes the post request to the API with the payload and headers, 
-    parses the response from the API, and provides the status code.
+# Constants for API
+API_URL = 'https://sn-watson-emotion.labs.skills.network/v1/watson.runtime.nlp.v1/NlpService/EmotionPredict'
+MODEL_ID = 'emotion_aggregated-workflow_lang_en_stock'
+
+
+def emotion_detector(text_to_analyse, api_url=API_URL, model_id=MODEL_ID):
     """
-    # Define the URL for the emotion analuysis API
-    url = """https://sn-watson-emotion.labs.skills.network/v1/watson.runtime.nlp.v1/NlpService/EmotionPredict"""
+    Detects emotions from a given text and extracts the dominant emotion.
 
-    # Create the payload with the text to be analyzed
-    myobj = { "raw_document": { "text": text_to_analyse } }
+    Args:
+        text_to_analyse (str): The input text to analyze.
+        api_url (str): The URL of the emotion detection API.
+        model_id (str): The model ID for the API.
 
-    # Set the headers with the required model ID for the API
-    header = {"grpc-metadata-mm-model-id": "emotion_aggregated-workflow_lang_en_stock"}
+    Returns:
+        dict: A dictionary containing the emotion scores and the dominant emotion.
+    """
+    # Create the request payload and headers
+    payload = {"raw_document": {"text": text_to_analyse}}
+    headers = {"grpc-metadata-mm-model-id": model_id}
 
     try:
-        # Make a POST request to the API with the payload and headers
-        response = requests.post(url, json=myobj, headers=header)
+        # Send a POST request to the API
+        response = requests.post(api_url, json=payload, headers=headers)
 
-        if response.status_code != 200:
-            raise ValueError(f"Request failed with status code {response.status_code}: {response.text}")
+        # Check if the response is successful
+        if response.status_code == 200:
+            formatted_response = response.json()
 
-        # Parse the response from the API
-        formatted_response = response.json()
+            # Safely extract emotion scores
+            emotion_predictions = formatted_response.get('emotionPredictions', [])
+            if emotion_predictions and isinstance(emotion_predictions, list):
+                # Extract the first set of emotions
+                emotion_data = emotion_predictions[0].get('emotion', {})
 
-        emotion_prediction = formatted_response.get('emotionPredictions', {}).get('emotion', {})
-        dominant_emotion = formatted_response.get('emotionPredictions', {}).get('dominant_emotion', "unknown")
+                # Extract all available emotions dynamically
+                emotion_scores = {
+                    key: value for key, value in emotion_data.items() if value is not None
+                }
 
-        emotions = {}
-        for emotion, score in emotion_prediction.items():
-            emotions[emotion] = score
-        
-        emotions['dominant_emotion'] = dominant_emotion
+                # Find the dominant emotion
+                dominant_emotion = max(
+                    emotion_scores,
+                    key=emotion_scores.get,
+                    default=None,
+                )
 
-        return emotions
-    
+                # Return the detected emotions along with the dominant one
+                return {**emotion_scores, 'dominant_emotion': dominant_emotion}
+
+        # Return default values if no valid response
+        return {
+            'dominant_emotion': None
+        }
+
     except requests.exceptions.RequestException as e:
-        raise Exception(f"An error occurred while making the request: {e}")
-    
-    except ValueError as ve:
-        raise Exception(f"Error processing the response: {ve}")
+        # Handle network-related errors or API issues
+        print(f"An error occurred: {e}")
+        return {
+            'dominant_emotion': None
+        }
